@@ -255,7 +255,7 @@ class RLBot(Player):
 
     def move(self, piece_arrays: Dict) -> int:
         curr_state = self.get_state_array(piece_arrays)
-        state = self.process_st nuj nujate(curr_state)
+        state = self.process_state(curr_state)
         q_vals = self.model(state)
 
         # get best predicted action
