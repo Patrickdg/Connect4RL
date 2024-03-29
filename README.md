@@ -42,15 +42,15 @@ while True: # start the game
                 - Place the piece, update arrays needed
                 - Check connect 4 win condition 
 
-        render_pieces() # render individual red and yellow checker pieces based
-        render_board() # render the board on top of pieces
-        render_scores()
-        CLOCK.tick(60)
+    render_pieces() # render individual red and yellow checker pieces based
+    render_board() # render the board on top of pieces
+    render_scores()
+    CLOCK.tick(60)
         
-        if Game is done: # draw, or one side wins
-            End the loop
-            Record results
-            Refresh the game
+    if Game is done: # draw, or one side wins
+        End the loop
+        Record results
+        Refresh the game
 ```
 
 Pieces are stored as class objects and the piece images themselves (as well as the board image) are made in [Canva](https://www.canva.com/) and transferred to [Gimp](https://www.gimp.org/) to convert them to transparent images (using the 'Convert to Alpha' functionality). 
