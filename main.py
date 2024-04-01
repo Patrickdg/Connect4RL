@@ -55,8 +55,8 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
         score_x = BUFFER_PIXELS+BOARD_DIM[0]*PIECE_DIM[0]+50
         score_y = BUFFER_PIXELS
         n_games = SCORE_COUNTS[-1] + SCORE_COUNTS[1]
-        DISPLAY.blit(FONT.render(f"P1-{p1_name}: {SCORE_COUNTS[-1]} | Win rate: {WIN_RATES[-1]}", False, (0,0,0)), (score_x, score_y))
-        DISPLAY.blit(FONT.render(f"P2-{p2_name}: {SCORE_COUNTS[1]} | Win rate: {WIN_RATES[1]}", False, (0,0,0)), (score_x, score_y*3))
+        DISPLAY.blit(FONT.render(f"P1-{p1_name}: Win rate={WIN_RATES[-1]}", False, (0,0,0)), (score_x, score_y))
+        DISPLAY.blit(FONT.render(f"P2-{p2_name}: Win rate={WIN_RATES[1]}", False, (0,0,0)), (score_x, score_y*3))
         DISPLAY.blit(FONT.render(f"Games Played: {n_games}", False, (0,0,0)), (score_x, score_y*6))
 
     def render_board():
