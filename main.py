@@ -14,7 +14,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from classes.Piece import Piece
-from classes.Players import Bot, RLBot, Human
+from classes.Players import *
 
 pygame.init()
 pygame.font.init()
@@ -194,7 +194,7 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
     global RESULT
     is_test = test_paths is not None
     results_df = pd.DataFrame()
-    player_classes = {'player': Human, 'bot': Bot, 'RLbot': RLBot}
+    player_classes = {'player': Human, 'bot': Bot, 'RLbot': RLBot, 'RLbotDDQN': RLBotDDQN}
     players = [p1, p2]
     p1_turn = -1
     players = {k: player_classes[players[v]](name=n, turn=k) \
@@ -214,12 +214,12 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
                         RESULT = place_piece(curr_turn, col)
                         curr_turn *= -1; curr_player = players[curr_turn]
         if curr_player.name!='player':
-            is_rl_bot = curr_player.name=='RLbot'
+            is_rl_bot = 'RLbot' in curr_player.name
             passed_state = PIECE_ARRAYS if is_rl_bot else BOARD_ARRAY
             # Determine model weights based on simulation parameters
             if is_test and (len(GAME_SEQ) < 2) and is_rl_bot: # first moves
                 curr_player.load_model(test_paths[curr_player.turn])
-            if self_play and all(p=='RLbot' for p in [p1, p2]): # copy other RLbot's weights
+            if self_play and all('RLbot' in p for p in [p1, p2]): # copy other RLbot's weights
                 curr_player.model.load_state_dict(players[-curr_turn].model.state_dict())
             # get & make move
             col = curr_player.move(passed_state)

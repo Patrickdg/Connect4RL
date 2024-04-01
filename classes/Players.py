@@ -4,7 +4,8 @@ import torch
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 from typing import Dict
 import matplotlib.pyplot as plt
-
+from collections import deque
+import copy
 
 class Player:
     def __init__(self, name: str, turn: int) -> None:
@@ -40,6 +41,7 @@ class RLBot(Player):
 
         self.losses = []
         self.rewards = []
+        self.n_moves = 0
         #sqars: state_t, q_vals_t, action_t, reward_t, state_t+1
         self.current_sqars = [None, None, None, None, None]
         self.reward_vals = {
@@ -94,6 +96,7 @@ class RLBot(Player):
         self.current_sqars[0] = state
         self.current_sqars[1] = q_vals
         self.current_sqars[2] = action_
+        self.n_moves += 1
         return action_
     
     def get_reward(self, move_result):
@@ -149,7 +152,7 @@ class RLBot(Player):
 
         ax2 = ax1.twinx()
         ax2.set_ylabel("Loss")
-        ax1.plot(np.arange(len(self.rewards)), self.losses, color='b')
+        ax1.plot(np.arange(len(self.losses)), self.losses, color='b')
 
         fig.tight_layout()
 
@@ -168,3 +171,60 @@ class RLBot(Player):
 class Human(Player):
     def __init__(self, name: str, turn: int) -> None:
         super().__init__(name, turn)
+
+class RLBotDDQN(RLBot):
+    def __init__(self, name: str, turn: int) -> None:
+        super().__init__(name, turn)
+        self.memory = deque(maxlen=1000)
+        self.batch_size = 200
+
+        self.target_sync_freq = 200
+        self.target_model = copy.deepcopy(self.model)
+        self.target_model.load_state_dict(self.model.state_dict())
+
+    def train(self, new_piece_arrays, result):
+        new_state = self.get_state_array(new_piece_arrays)
+        new_state = self.process_state(new_state)
+        self.current_sqars[4] = new_state
+
+        reward = self.get_reward(result)
+        curr_experience = (#sqars: state_t, q_vals_t, action_t, reward_t, state_t+1
+            self.current_sqars[0], # state t
+            self.current_sqars[2], # action t
+            self.current_sqars[3], # reward t
+            self.current_sqars[4], # state t+1
+            int(result is not None)
+        )
+        self.memory.append(curr_experience)
+
+        if len(self.memory) <= self.batch_size:
+            return None
+
+        minibatch = random.sample(self.memory, self.batch_size)
+        s_batch = torch.cat([s for (s,a,r,s2,d) in minibatch]).to(device)
+        a_batch = torch.Tensor([a for (s,a,r,s2,d) in minibatch]).to(device)
+        r_batch = torch.Tensor([r for (s,a,r,s2,d) in minibatch]).to(device)
+        s2_batch = torch.cat([s2 for (s,a,r,s2,d) in minibatch]).to(device)
+        d_batch = torch.Tensor([d for (s,a,r,s2,d) in minibatch]).to(device)
+
+        q1 = self.model(s_batch)
+        # get Q values of new state to update last state's Q values
+        with torch.no_grad():
+            new_q = self.target_model(s2_batch)
+        max_q = torch.max(new_q, dim=1)
+
+        # target value
+        Y = r_batch + self.gamma*((1-d_batch)*max_q[0])
+        X = q1.gather(dim=1, index=a_batch.long().unsqueeze(dim=1)).squeeze()
+
+        loss = self.loss_fn(X, Y.detach())
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.losses.append(loss.item())
+        self.optimizer.step()
+
+        if self.n_moves % self.target_sync_freq == 0:
+            self.target_model.load_state_dict(self.model.state_dict())
+
+        if result is not None: # game epoch is over
+            self.reset_vars()
