@@ -419,3 +419,7 @@ Therefore, after calculating this loss, we perform [back propagation](https://en
 Basically, we're trying to place 'blame' on which node parameters were the most incorrect using differentiation (cool maths that I won't get into in this project). 
 
 Once we can attribute where the error should be sprinkled across the different nodes in our network, then we can update the parameters of our network so that for future instances, our model will be just slightly better (i.e., make slightly smaller error/loss) for future predictions. 
+
+---
+
+Refer to [this doc](/TUNING.md) for further model improvements and self-play training adjustments. 
