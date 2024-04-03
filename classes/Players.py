@@ -93,10 +93,13 @@ class RLBot(Player):
         state = self.process_state(curr_state)
         q_vals = self.model(state)
         q_vals_ = q_vals.data.cpu().numpy()
-
+        
+        board_arr = piece_arrays[self.turn] + piece_arrays[-self.turn]
+        available_cols = board_arr.sum(axis=0) < board_arr.shape[0]
         if random.random() < self.epsilon:
-            action_ = np.random.randint(0, 7)
+            action_ = random.choice([i for i,n in enumerate(available_cols) if n])
         else:
+            action_ = np.argmax(q_vals_*available_cols.astype(int))
         self.epsilon *= (1-self.epsilon_decay)
         self.current_sqars[0] = state
         self.current_sqars[1] = q_vals
