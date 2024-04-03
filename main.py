@@ -239,6 +239,8 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
             results_df = log_result(results_df, first_turn)
             refresh_game()
             first_turn *= -1; curr_player = players[first_turn]
+            if not is_test and curr_player.turn==-1 and curr_player.stop_training: # Early stopping for DRL
+                break
         if results_df.shape[0]==epochs:
             break
 

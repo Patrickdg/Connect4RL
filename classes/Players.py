@@ -41,6 +41,9 @@ class RLBot(Player):
         self.epsilon = 0.0 if (self.turn!=-1 or self.test) else 0.5
         self.epsilon_decay = 0.0007
 
+        self.stop_training = False # early stopping flag
+        self.min_loss_dict = {'current_min': np.inf, 'num_steps': 0}
+        self.patience = 200 # num. steps
         self.losses = []
         self.rewards = []
         self.n_moves = 0
@@ -115,6 +118,19 @@ class RLBot(Player):
     
     def reset_vars(self):
         self.current_sqars = [None, None, None, None, None]
+
+    def update_early_stopping(self):
+        check_window_steps = 50
+        if len(self.losses)>=check_window_steps:
+            current_avg_loss = np.mean(self.losses[-check_window_steps:])
+            if current_avg_loss < self.min_loss_dict['current_min']:
+                self.min_loss_dict['current_min'] = current_avg_loss
+                self.min_loss_dict['num_steps'] = 0
+            else:
+                self.min_loss_dict['num_steps'] += 1
+            
+            if self.min_loss_dict['num_steps']>=self.patience:
+                self.stop_training = True
     
     def train(self, new_piece_arrays, result):
         new_state = self.get_state_array(new_piece_arrays)
@@ -139,6 +155,7 @@ class RLBot(Player):
         self.losses.append(loss.item())
         self.optimizer.step()
 
+        self.update_early_stopping()
         if result is not None: # game epoch is over
             self.reset_vars()
 
@@ -227,6 +244,7 @@ class RLBotDDQN(RLBot):
 
         if self.n_moves % self.target_sync_freq == 0:
             self.target_model.load_state_dict(self.model.state_dict())
-
+        
+        self.update_early_stopping()
         if result is not None: # game epoch is over
             self.reset_vars()
