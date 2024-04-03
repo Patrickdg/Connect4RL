@@ -38,7 +38,8 @@ class RLBot(Player):
         self.lr = 1e-3
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr) 
         self.gamma = 0.9
-        self.epsilon = 0.2
+        self.epsilon = 0.0 if (self.turn!=-1 or self.test) else 0.5
+        self.epsilon_decay = 0.0007
 
         self.losses = []
         self.rewards = []
@@ -93,7 +94,7 @@ class RLBot(Player):
         if random.random() < self.epsilon:
             action_ = np.random.randint(0, 7)
         else:
-            action_ = np.argmax(q_vals_)
+        self.epsilon *= (1-self.epsilon_decay)
         self.current_sqars[0] = state
         self.current_sqars[1] = q_vals
         self.current_sqars[2] = action_
