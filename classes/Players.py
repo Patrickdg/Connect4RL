@@ -8,17 +8,18 @@ from collections import deque
 import copy
 
 class Player:
-    def __init__(self, name: str, turn: int) -> None:
+    def __init__(self, name: str, turn: int, test: bool) -> None:
         self.name = name
         self.turn = turn # -1|1
+        self.test = test
 
     def move(self, board_arr) -> int:
         raise NotImplementedError("Implemented by child class.")
 
 
 class Bot(Player):
-    def __init__(self, name: str, turn: int) -> None:
-        super().__init__(name, turn)
+    def __init__(self, name: str, turn: int, test: bool) -> None:
+        super().__init__(name, turn, test)
 
     def move(self, board_arr) -> int:
         """Make move based on current board state."""
@@ -28,8 +29,8 @@ class Bot(Player):
         return col
     
 class RLBot(Player):
-    def __init__(self, name: str, turn: int) -> None:
-        super().__init__(name, turn)
+    def __init__(self, name: str, turn: int, test: bool) -> None:
+        super().__init__(name, turn, test)
 
         self.activation = torch.nn.ReLU
         self.model = self.initialize_model()
@@ -169,12 +170,12 @@ class RLBot(Player):
         self.plot_results(save_path=model_path+'results.png')
 
 class Human(Player):
-    def __init__(self, name: str, turn: int) -> None:
-        super().__init__(name, turn)
+    def __init__(self, name: str, turn: int, test: bool) -> None:
+        super().__init__(name, turn, test)
 
 class RLBotDDQN(RLBot):
-    def __init__(self, name: str, turn: int) -> None:
-        super().__init__(name, turn)
+    def __init__(self, name: str, turn: int, test: bool) -> None:
+        super().__init__(name, turn, test)
         self.memory = deque(maxlen=1000)
         self.batch_size = 200
 
