@@ -50,7 +50,7 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
 
     refresh_game()
 
-    def render_scores(names):
+    def render_scores(names, player):
         p1_name, p2_name = names
         score_x = BUFFER_PIXELS+BOARD_DIM[0]*PIECE_DIM[0]+50
         score_y = BUFFER_PIXELS
@@ -58,6 +58,10 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
         DISPLAY.blit(FONT.render(f"P1-{p1_name}: Win rate={WIN_RATES[-1]}", False, (0,0,0)), (score_x, score_y))
         DISPLAY.blit(FONT.render(f"P2-{p2_name}: Win rate={WIN_RATES[1]}", False, (0,0,0)), (score_x, score_y*3))
         DISPLAY.blit(FONT.render(f"Games Played: {n_games}", False, (0,0,0)), (score_x, score_y*6))
+
+        DISPLAY.blit(FONT.render(f"P1 Current Min. Loss: {np.round(player.min_loss_dict['current_min'], 4)}", False, (0,0,0)), (score_x, score_y*9))
+        DISPLAY.blit(FONT.render(f"P1 Loss Steps: {player.min_loss_dict['num_steps']}", False, (0,0,0)), (score_x, score_y*11))
+        DISPLAY.blit(FONT.render(f"P1 Current Epsilon: {player.epsilon}", False, (0,0,0)), (score_x, score_y*13))
 
     def render_board():
         DISPLAY.blit(BOARD_IMG, (0 ,0))
@@ -231,7 +235,7 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
         DISPLAY.fill("white")
         render_pieces()
         render_board()
-        render_scores(names=[p1, p2])
+        render_scores(names=[p if not isinstance(p, Player) else p.name for p in [p1, p2]], player=players[-1])
         pygame.display.flip()
         CLOCK.tick(60)
 
