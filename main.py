@@ -30,7 +30,7 @@ PIECE_IMGS = {-1: pygame.image.load('imgs/red_piece.png'), 1: pygame.image.load(
 PIECE_DIM = (PIECE_IMGS[-1].get_width(), PIECE_IMGS[-1].get_height())
 BOARD_IMG = pygame.image.load('imgs/board.png')
 
-def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', test_paths=None):
+def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, test_paths=None):
     # SETUP & HELPER FUNCTIONS ======================================================
     SCORE_COUNTS = {-1: 0.0, 1: 0.0}
     WIN_RATES =    {-1: 0.0, 1: 0.0}
@@ -158,12 +158,13 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
             )
         return pd.concat([results_df, new_result_df])
 
-    def log_models_and_results(players_dict, results_df, expr_name):
-        model_path = f'models/{expr_name}/'
+    def log_models_and_results(players_dict, results_df, expr_dir, expr_name):
+        model_path = f'models/{expr_dir}/{expr_name}/'
         os.makedirs(model_path, exist_ok=True)
 
         for i, player in players_dict.items():
-            if isinstance(player, RLBot):
+            # only store current self-play bot
+            if isinstance(player, RLBot) and player.turn==-1: 
                 player.save_model_and_results(model_path)
             
         results_df.reset_index(drop=True, inplace=True)
@@ -201,8 +202,11 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
     player_classes = {'player': Human, 'bot': Bot, 'RLbot': RLBot, 'RLbotDDQN': RLBotDDQN}
     players = [p1, p2]
     p1_turn = -1
-    players = {k: player_classes[players[v]](name=n, turn=k) \
-            for k, v, n in zip([p1_turn, -p1_turn], [0, 1], players)}
+    if self_play:
+        players = {-1: p1, 1: p2} # RL bot to be trained on self-play is always '-1'
+    else:
+        players = {k: player_classes[players[v]](name=n, turn=k, test=is_test) \
+                for k, v, n in zip([p1_turn, -p1_turn], [0, 1], players)}
     first_turn = -1
     curr_turn = -1
     curr_player = players[curr_turn]
@@ -217,7 +221,7 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
                     if BOARD_ARRAY[0, col]==0:
                         RESULT = place_piece(curr_turn, col)
                         curr_turn *= -1; curr_player = players[curr_turn]
-        if curr_player.name!='player':
+        if 'bot' in curr_player.name:
             is_rl_bot = 'RLbot' in curr_player.name
             passed_state = PIECE_ARRAYS if is_rl_bot else BOARD_ARRAY
             # Determine model weights based on simulation parameters
@@ -259,8 +263,7 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
         is_test=is_test
     )
     log_expr_results(expr_dict)
-    log_models_and_results(players, results_df, expr_dict['expr_name'])
-    return results_df
+    log_models_and_results(players, results_df, expr_dir, expr_dict['expr_name'])
 
 if __name__=="__main__":
     pairings = [
