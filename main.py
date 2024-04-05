@@ -267,7 +267,7 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
     log_models_and_results(players, results_df, expr_dir, expr_dict['expr_name'])
     if is_test:
         return None
-    elif self_play:
+    elif isinstance(players[-1], RLBotDDQN):
         return [players[-1].reset_self_play(), copy.deepcopy(players[-1]).reset_self_play()]
 
 def train_loop(expr_dir):
