@@ -211,6 +211,7 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
     curr_turn = -1
     curr_player = players[curr_turn]
     while True:
+        move_made_in_cycle = False
         for event in pygame.event.get():
             if event.type==pygame.QUIT:
                 pygame.quit()
@@ -221,7 +222,8 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
                     if BOARD_ARRAY[0, col]==0:
                         RESULT = place_piece(curr_turn, col)
                         curr_turn *= -1; curr_player = players[curr_turn]
-        if 'bot' in curr_player.name:
+                        move_made_in_cycle = True
+        if not move_made_in_cycle and 'bot' in curr_player.name:
             is_rl_bot = 'RLbot' in curr_player.name
             passed_state = PIECE_ARRAYS if is_rl_bot else BOARD_ARRAY
             # Determine model weights based on simulation parameters
