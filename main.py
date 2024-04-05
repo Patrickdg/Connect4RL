@@ -14,7 +14,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from classes.Piece import Piece
-from classes.Players import Bot, RLBot, Human
+from classes.Players import *
 
 pygame.init()
 pygame.font.init()
@@ -30,7 +30,7 @@ PIECE_IMGS = {-1: pygame.image.load('imgs/red_piece.png'), 1: pygame.image.load(
 PIECE_DIM = (PIECE_IMGS[-1].get_width(), PIECE_IMGS[-1].get_height())
 BOARD_IMG = pygame.image.load('imgs/board.png')
 
-def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', test_paths=None):
+def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, test_paths=None):
     # SETUP & HELPER FUNCTIONS ======================================================
     SCORE_COUNTS = {-1: 0.0, 1: 0.0}
     WIN_RATES =    {-1: 0.0, 1: 0.0}
@@ -50,14 +50,18 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
 
     refresh_game()
 
-    def render_scores(names):
+    def render_scores(names, player):
         p1_name, p2_name = names
         score_x = BUFFER_PIXELS+BOARD_DIM[0]*PIECE_DIM[0]+50
         score_y = BUFFER_PIXELS
         n_games = SCORE_COUNTS[-1] + SCORE_COUNTS[1]
-        DISPLAY.blit(FONT.render(f"P1-{p1_name}: {SCORE_COUNTS[-1]} | Win rate: {WIN_RATES[-1]}", False, (0,0,0)), (score_x, score_y))
-        DISPLAY.blit(FONT.render(f"P2-{p2_name}: {SCORE_COUNTS[1]} | Win rate: {WIN_RATES[1]}", False, (0,0,0)), (score_x, score_y*3))
+        DISPLAY.blit(FONT.render(f"P1-{p1_name}: Win rate={WIN_RATES[-1]}", False, (0,0,0)), (score_x, score_y))
+        DISPLAY.blit(FONT.render(f"P2-{p2_name}: Win rate={WIN_RATES[1]}", False, (0,0,0)), (score_x, score_y*3))
         DISPLAY.blit(FONT.render(f"Games Played: {n_games}", False, (0,0,0)), (score_x, score_y*6))
+
+        DISPLAY.blit(FONT.render(f"P1 Current Min. Loss: {np.round(player.min_loss_dict['current_min'], 4)}", False, (0,0,0)), (score_x, score_y*9))
+        DISPLAY.blit(FONT.render(f"P1 Loss Steps: {player.min_loss_dict['num_steps']}", False, (0,0,0)), (score_x, score_y*11))
+        DISPLAY.blit(FONT.render(f"P1 Current Epsilon: {player.epsilon}", False, (0,0,0)), (score_x, score_y*13))
 
     def render_board():
         DISPLAY.blit(BOARD_IMG, (0 ,0))
@@ -154,12 +158,13 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
             )
         return pd.concat([results_df, new_result_df])
 
-    def log_models_and_results(players_dict, results_df, expr_name):
-        model_path = f'models/{expr_name}/'
+    def log_models_and_results(players_dict, results_df, expr_dir, expr_name):
+        model_path = f'models/{expr_dir}/{expr_name}/'
         os.makedirs(model_path, exist_ok=True)
 
         for i, player in players_dict.items():
-            if isinstance(player, RLBot):
+            # only store current self-play bot
+            if isinstance(player, RLBot) and player.turn==-1: 
                 player.save_model_and_results(model_path)
             
         results_df.reset_index(drop=True, inplace=True)
@@ -194,11 +199,14 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
     global RESULT
     is_test = test_paths is not None
     results_df = pd.DataFrame()
-    player_classes = {'player': Human, 'bot': Bot, 'RLbot': RLBot}
+    player_classes = {'player': Human, 'bot': Bot, 'RLbot': RLBot, 'RLbotDDQN': RLBotDDQN}
     players = [p1, p2]
     p1_turn = -1
-    players = {k: player_classes[players[v]](name=n, turn=k) \
-            for k, v, n in zip([p1_turn, -p1_turn], [0, 1], players)}
+    if self_play:
+        players = {-1: p1, 1: p2} # RL bot to be trained on self-play is always '-1'
+    else:
+        players = {k: player_classes[players[v]](name=n, turn=k, test=is_test) \
+                for k, v, n in zip([p1_turn, -p1_turn], [0, 1], players)}
     first_turn = -1
     curr_turn = -1
     curr_player = players[curr_turn]
@@ -213,13 +221,13 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
                     if BOARD_ARRAY[0, col]==0:
                         RESULT = place_piece(curr_turn, col)
                         curr_turn *= -1; curr_player = players[curr_turn]
-        if curr_player.name!='player':
-            is_rl_bot = curr_player.name=='RLbot'
+        if 'bot' in curr_player.name:
+            is_rl_bot = 'RLbot' in curr_player.name
             passed_state = PIECE_ARRAYS if is_rl_bot else BOARD_ARRAY
             # Determine model weights based on simulation parameters
             if is_test and (len(GAME_SEQ) < 2) and is_rl_bot: # first moves
                 curr_player.load_model(test_paths[curr_player.turn])
-            if self_play and all(p=='RLbot' for p in [p1, p2]): # copy other RLbot's weights
+            if self_play and all('RLbot' in p for p in [p1, p2]): # copy other RLbot's weights
                 curr_player.model.load_state_dict(players[-curr_turn].model.state_dict())
             # get & make move
             col = curr_player.move(passed_state)
@@ -231,7 +239,7 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
         DISPLAY.fill("white")
         render_pieces()
         render_board()
-        render_scores(names=[p1, p2])
+        render_scores(names=[p if not isinstance(p, Player) else p.name for p in [p1, p2]], player=players[-1])
         pygame.display.flip()
         CLOCK.tick(60)
 
@@ -239,6 +247,8 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
             results_df = log_result(results_df, first_turn)
             refresh_game()
             first_turn *= -1; curr_player = players[first_turn]
+            if not is_test and curr_player.turn==-1 and curr_player.stop_training: # Early stopping for DRL
+                break
         if results_df.shape[0]==epochs:
             break
 
@@ -246,15 +256,14 @@ def main(p1='RLbot', p2='bot', epochs=1000, self_play=False, expr_ext='RLbot', t
         date=datetime.datetime.today().strftime('%m-%d-%Y-%H-%M'),
         p1=p1, p2=p2,
         self_play=self_play,
-        expr_ext=expr_ext,
+        expr_ext=expr_dir,
         epochs=epochs,
         p1_win_rate=WIN_RATES[players[p1_turn].turn],
         p2_win_rate=WIN_RATES[-p1_turn],
         is_test=is_test
     )
     log_expr_results(expr_dict)
-    log_models_and_results(players, results_df, expr_dict['expr_name'])
-    return results_df
+    log_models_and_results(players, results_df, expr_dir, expr_dict['expr_name'])
 
 if __name__=="__main__":
     pairings = [
@@ -269,6 +278,6 @@ if __name__=="__main__":
             p1=a,
             p2=b,
             epochs=1000,
-            expr_ext='base_sims',
+            expr_dir='base_sims',
             self_play=play_type,
         )
