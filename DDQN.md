@@ -3,6 +3,7 @@
 This document outlines methods for improving our RL bot with the following additions:
 - Experience Replay
 - Double Deep Q Network (DDQN)
+- Other training adjustments
 
 
 # RL Adjustments
@@ -169,7 +170,7 @@ class RLBotDDQN(RLBot):
 
 ```
 
-# Results
+## Results
 Below are average loss values during training for our RL agent against a random bot before and after experience replay and DDQN target network setup.
 
 Most notably, the scale of the loss values are lower after implementing experience replay + DDQN, and the learning trend is much smoother and quicker to converge as well.
@@ -178,3 +179,102 @@ The changes we've implemented have effectively improved our convergence speed an
 
 ![loss_hist_base](_docs/loss_history_base.png)
 ![loss_hist_ddqn](_docs/loss_history_ddqn_with_replay.png)
+
+# Other Training Adjustments
+In addition to experience replay and DDQN, we make a number of other adjustments to our training setup:
+
+## Early Stopping
+From the previous graph, we saw that the stabilized average loss values after implementing DDQN with replay seems to level off fairly quickly. 
+When the loss values stagnate like this, there is very little 'learning' that occurs which renders future training cycles wasteful of time and computing resources.
+In addition, continuing to train under these circumstances creates the opportunity for overfitting to get worse, and the bot could even backtrack on its progress and start 'unlearning'.
+'Overfitting' is a situation we generally try to avoid where trained models are not able to generalize their learnings to new instances as a result of contorting their learning too heavily on the volatility and patterns in the training data.
+This happens as a result of having training data with a distribution or patterns not reflective of test data, and/or as a result of training a model for too long. 
+
+To prevent this, we simply stop our RL bot from training when the loss values during training fails to reach a new minimum after a certain number of steps. 
+The number of steps is defined as our 'patience' level because we exert a certain amount of patience before we cut training off for the bot (we want our bot to continue proving to us that it is still learning a 'good' amount, and if it fails to keep showing improvement, then we stop).
+To address the sporadic nature of our loss values during training, we track a moving average of the last 50 loss values from the last 50 steps/moves made.
+This modification helps prevent overfitting, unlearning, and inefficiencies from training unnecessary game epochs.
+
+## Epsilon Decay
+The exploration rate 'epsilon' is effective in forcing our RL bot to experiment with novel moves during initial learning.
+However, as the bot gets deeper into its training process and begins to form cohesive strategies about how to win games, we don't want the bot to continue making random moves, let's say, 20% of the time because this could very well interfere with the bot's learned strategies, future moves, and thus, value estimation updates.
+Intuitively, once the bot starts garnering a deeper understanding of the task at hand, we want it to start developing its strategies in a non-random way, so we can 'decay' the exploration rate slowly over time to create this effect.
+
+Therefore, we set epsilon rate to a slightly higher value to start (to accommodate for decay), and after every move we make, we multiply the current epsilon rate with $(1-epsilonDecay)$  where epsilonDecay is a small value like 0.0005.
+
+For example, if we start with an epsilon rate of 0.3 (30% random moves) and a decay of 0.0007, we would have an epsilon rate of $0.3*(1-0.0007)^{2000}\approx0.07$ at the end of 2000 time steps (~133 Connect 4 games assuming an average game length of 15 moves).
+
+## Mask Illegal Moves
+To better handle illegal move generation, we employ illegal move masking before selecting the action for our bot to take.
+
+Simply put, we generate a binary vector of 0s and 1s denoting the available columns on the board.
+Then, we multiply this vector by the vector of q-value estimates for all actions (which zeros out the q-values of the illegal actions) before taking the max q-value from this vector.
+
+## Implementation
+
+We employ early stopping, epsilon decay, and illegal move masks by adding the following logic in our bot:
+
+```python 
+class RLBot(Player):
+    def __init__(self, name: str, turn: int, test: bool) -> None:
+        super().__init__(name, turn, test)
+        ...
+
+        """ EPSILON DECAY:
+        - we only want the bot we're training to use exploration
+        - also, if we're only testing the bot, we don't use epsilon exploration"""
+        self.epsilon = 0.0 if (self.turn!=-1 or self.test) else 0.5
+        self.epsilon_decay = 0.0007
+
+        """ EARLY STOPPING trackers"""
+        self.stop_training = False # early stopping flag; checked after every move in game loop*
+        self.min_loss_dict = {'current_min': np.inf, 'num_steps': 0}
+        self.patience = 200 # num. steps
+
+        ...
+
+    def move(self, board_arr: Dict) -> int:
+        ...
+
+        # get the binary vector denoting which columns are legal to place piece
+        available_cols = board_arr.sum(axis=0) < board_arr.shape[0]
+        if random.random() < self.epsilon:
+            action_ = random.choice([i for i,n in enumerate(available_cols) if n])
+        else: # zero-out the illegal move q-values
+            action_ = np.argmax(q_vals_*available_cols.astype(int))
+        
+        ...
+
+        # decay the epsilon rate
+        self.epsilon *= (1-self.epsilon_decay)
+        
+        ...
+    
+    def update_early_stopping(self):
+        check_window_steps = 50
+        if len(self.losses)>=check_window_steps:
+            current_avg_loss = np.mean(self.losses[-check_window_steps:])
+            if current_avg_loss < self.min_loss_dict['current_min']:
+                self.min_loss_dict['current_min'] = current_avg_loss
+                self.min_loss_dict['num_steps'] = 0
+            else:
+                self.min_loss_dict['num_steps'] += 1
+            
+            if self.min_loss_dict['num_steps']>=self.patience:
+                self.stop_training = True
+    
+    def train(self, new_piece_arrays, result):
+        # get new state
+        # get reward
+        # store experience in memory
+        # calculate target value with target network
+        # calculate loss
+        # update with back propagation
+        # perform optimization, update parameters
+        ...
+
+        self.update_early_stopping()
+
+        ...
+
+```
