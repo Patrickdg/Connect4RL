@@ -253,14 +253,14 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
             break
 
     expr_dict = build_expr_dict(
-        date=datetime.datetime.today().strftime('%m-%d-%Y-%H-%M'),
-        p1=p1, p2=p2,
+        date=datetime.datetime.today().strftime('%m-%d-%Y-%H-%M-%S'),
+        p2=p2 if not isinstance(p2, RLBot) else p2.name,
         self_play=self_play,
-        expr_ext=expr_dir,
-        epochs=epochs,
-        p1_win_rate=WIN_RATES[players[p1_turn].turn],
-        p2_win_rate=WIN_RATES[-p1_turn],
-        is_test=is_test
+        epochs=results_df.shape[0],
+        expr_dir=expr_dir,
+        p1_wr=WIN_RATES[players[p1_turn].turn],
+        p2_wr=WIN_RATES[-p1_turn],
+        is_test=True if is_test else None
     )
     log_expr_results(expr_dict)
     log_models_and_results(players, results_df, expr_dir, expr_dict['expr_name'])
