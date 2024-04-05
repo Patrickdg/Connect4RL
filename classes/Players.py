@@ -38,7 +38,7 @@ class RLBot(Player):
         self.lr = 1e-3
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr) 
         self.gamma = 0.9
-        self.epsilon = 0.0 if (self.turn!=-1 or self.test) else 0.5
+        self.epsilon = self.get_epsilon()
         self.epsilon_decay = 0.0007
 
         self.stop_training = False # early stopping flag
@@ -55,6 +55,9 @@ class RLBot(Player):
             'loss': -10,
             'move': 0,
         }
+
+    def get_epsilon(self):
+        return 0.0 if (self.turn!=-1 or self.test) else 0.3
 
     def initialize_model(self):
         input_n = 84
