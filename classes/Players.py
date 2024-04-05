@@ -210,6 +210,20 @@ class RLBotDDQN(RLBot):
         self.target_model = copy.deepcopy(self.model)
         self.target_model.load_state_dict(self.model.state_dict())
 
+    def reset_self_play(self):
+        self.lr = 1e-3
+        self.epsilon = self.get_epsilon()
+        self.losses = []
+        self.rewards = []
+        self.n_moves = 0
+        self.current_sqars = [None, None, None, None, None]
+
+        self.memory = deque(maxlen=1000)
+
+        self.stop_training = False
+        self.min_loss_dict = {'current_min': np.inf, 'num_steps': 0}
+        return self
+
     def train(self, new_piece_arrays, result):
         new_state = self.get_state_array(new_piece_arrays)
         new_state = self.process_state(new_state)

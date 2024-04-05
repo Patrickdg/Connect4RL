@@ -227,12 +227,11 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
             # Determine model weights based on simulation parameters
             if is_test and (len(GAME_SEQ) < 2) and is_rl_bot: # first moves
                 curr_player.load_model(test_paths[curr_player.turn])
-            if self_play and all('RLbot' in p for p in [p1, p2]): # copy other RLbot's weights
-                curr_player.model.load_state_dict(players[-curr_turn].model.state_dict())
             # get & make move
             col = curr_player.move(passed_state)
             RESULT = place_piece(curr_turn, col)
-            if is_rl_bot and not is_test:
+            # SELF-PLAY REGIMENT
+            if is_rl_bot and not is_test and curr_player.turn==-1: # only train the self-play RLbot
                 curr_player.train(PIECE_ARRAYS, RESULT)
             curr_turn *= -1; curr_player = players[curr_turn]
 
@@ -264,20 +263,41 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
     )
     log_expr_results(expr_dict)
     log_models_and_results(players, results_df, expr_dir, expr_dict['expr_name'])
+    if is_test:
+        return None
+    elif self_play:
+        return [players[-1].reset_self_play(), copy.deepcopy(players[-1]).reset_self_play()]
+
+def train_loop(expr_dir):
+    """Implements cascading level self-play for RLbotDDQN"""
+    n_levels = 5
+    games_per_level = 1000
+    players = ['RLbotDDQN', 'bot'] # starting pair
+    for n in range(n_levels):
+        players = main(
+            p1=players[0],
+            p2=players[1],
+            epochs=games_per_level,
+            expr_dir=expr_dir,
+            self_play=n>0
+            )
+
+def test_loop(expr_dir):
+    """Implements training loop that gathers the last 'n' models to test"""
+    last_n_models = 5
+    model_paths = os.listdir(f"models/{expr_dir}")[-last_n_models:]
+    paths = [f"models/{expr_dir}/{mp}/model.pth" for mp in model_paths]
+    for p in paths:
+        main(
+            p1='RLbotDDQN',
+            p2='bot',
+            epochs=200,
+            expr_dir=expr_dir,
+            self_play=False,
+            test_paths={-1: p}
+            )
 
 if __name__=="__main__":
-    pairings = [
-        ['bot', 'bot', False],
-        ['RLbot', 'bot', False],
-        ['RLbot', 'RLbot', False],
-        ['RLbot', 'RLbot', True],
-    ]
-
-    for a, b, play_type in pairings:
-        main(
-            p1=a,
-            p2=b,
-            epochs=1000,
-            expr_dir='base_sims',
-            self_play=play_type,
-        )
+    expr_dir = 'DDQN_selfplay_earlystopping2'
+    train_loop(expr_dir)
+    # test_loop(expr_dir)
