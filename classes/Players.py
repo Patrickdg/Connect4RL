@@ -166,7 +166,10 @@ class RLBot(Player):
             self.reset_vars()
 
     def load_model(self, path):
-        self.model.load_state_dict(torch.load(path).state_dict())
+        map_location = torch.device('cpu') if not torch.cuda.is_available() else None
+        self.model.load_state_dict(torch.load(path, map_location=map_location).state_dict())
+        if hasattr(self, 'target_model'):
+            self.target_model.load_state_dict(self.model.state_dict())
 
     def plot_results(self, show=False, save_path=None):
         """Plots losses, rewards by move"""
