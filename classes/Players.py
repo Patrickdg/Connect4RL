@@ -47,6 +47,7 @@ class RLBot(Player):
         self.losses = []
         self.rewards = []
         self.n_moves = 0
+        self.n_epoch_moves = 0
         #sqars: state_t, q_vals_t, action_t, reward_t, state_t+1
         self.current_sqars = [None, None, None, None, None]
         self.reward_vals = {
@@ -121,7 +122,7 @@ class RLBot(Player):
         self.current_sqars[0] = state
         self.current_sqars[1] = q_vals
         self.current_sqars[2] = action_
-        self.n_moves += 1
+        self.n_moves += 1; self.n_epoch_moves += 1
         return action_
     
     def get_reward(self, move_result):
@@ -138,6 +139,7 @@ class RLBot(Player):
     
     def reset_vars(self):
         self.current_sqars = [None, None, None, None, None]
+        self.n_epoch_moves = 0
 
     def update_early_stopping(self):
         check_window_steps = 50
@@ -231,6 +233,7 @@ class RLBotDDQN(RLBot):
         self.losses = []
         self.rewards = []
         self.n_moves = 0
+        self.n_epoch_moves = 0
         self.current_sqars = [None, None, None, None, None]
 
         self.memory = deque(maxlen=1000)
@@ -281,7 +284,6 @@ class RLBotDDQN(RLBot):
         loss.backward()
         self.optimizer.step()
         self.losses.append(loss.item())
-        self.optimizer.step()
 
         if self.n_moves % self.target_sync_freq == 0:
             self.target_model.load_state_dict(self.model.state_dict())
