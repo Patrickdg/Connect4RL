@@ -205,6 +205,7 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
     p1_turn = -1
     if self_play:
         players = {-1: p1, 1: p2} # RL bot to be trained on self-play is always '-1'
+        players[-1].turn = -1; players[1].turn = 1
     else:
         players = {k: player_classes[players[v]](name=n, turn=k, test=is_test) \
                 for k, v, n in zip([p1_turn, -p1_turn], [0, 1], players)}
