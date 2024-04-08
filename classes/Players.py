@@ -227,7 +227,7 @@ class RLBotDDQN(RLBot):
         self.target_model = copy.deepcopy(self.model)
         self.target_model.load_state_dict(self.model.state_dict())
 
-    def reset_self_play(self):
+    def reset_self_play(self, turn: int):
         self.lr = 1e-3
         self.epsilon = self.get_epsilon()
         self.losses = []
@@ -235,6 +235,7 @@ class RLBotDDQN(RLBot):
         self.n_moves = 0
         self.n_epoch_moves = 0
         self.current_sqars = [None, None, None, None, None]
+        self.turn = turn
 
         self.memory = deque(maxlen=1000)
 
