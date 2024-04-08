@@ -205,6 +205,7 @@ class RLBot(Player):
             plt.savefig(save_path)
         if show:
             plt.show()
+        plt.clf()
 
     def save_model_and_results(self, model_path: str):
         # model

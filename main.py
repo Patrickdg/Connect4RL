@@ -172,6 +172,7 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
         plt.xlabel('Epoch')
         plt.ylabel('Avg. Win Rate')
         plt.savefig(model_path+'avg_win_rates.png')
+        plt.clf()
 
         results_df.to_csv(model_path+'results_df.csv')
 
