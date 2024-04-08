@@ -113,7 +113,8 @@ class RLBot(Player):
         if random.random() < self.epsilon:
             action_ = random.choice([i for i,n in enumerate(available_cols) if n])
         else:
-            action_ = np.argmax(q_vals_*available_cols.astype(int))
+            q_vals_ = np.where((q_vals_*available_cols.astype(int))==0, q_vals.min().item()-1, q_vals_)
+            action_ = np.argmax(q_vals_)
         self.epsilon *= (1-self.epsilon_decay)
         self.current_sqars[0] = state
         self.current_sqars[1] = q_vals
