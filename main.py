@@ -233,11 +233,14 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
                 players[curr_turn].load_model(test_paths[players[curr_turn].turn])
             # get & make move
             col = players[curr_turn].move(passed_state)
+            move_made_in_cycle = True
+
             RESULT = place_piece(curr_turn, col)
             # SELF-PLAY REGIMENT
-            if is_rl_bot and not is_test and curr_player.turn==-1: # only train the self-play RLbot
-                curr_player.train(PIECE_ARRAYS, RESULT)
-            curr_turn *= -1; curr_player = players[curr_turn]
+            opponent_moved = players[curr_turn].turn==1 and players[-1].n_epoch_moves>0
+            rlbot_win = (RESULT is not None) and players[curr_turn].turn==-1
+            if not is_test and (opponent_moved or rlbot_win): # only train the self-play RLbot
+                players[-1] = players[-1].train(PIECE_ARRAYS, RESULT)
 
         DISPLAY.fill("white")
         render_pieces()
