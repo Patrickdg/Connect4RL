@@ -93,7 +93,7 @@ class RLBot(Player):
         num_cells = curr_state[0].shape[0]*curr_state[0].shape[1]
         curr_state = curr_state.reshape(1, num_cells*2)
         if isinstance(self.activation, torch.nn.ReLU):
-            curr_state += np.random.rand(1, num_cells*2)/10.0
+            curr_state += np.random.rand(1, num_cells*2)/100.0
 
         state = torch.from_numpy(curr_state).float().to(device)
         return state
