@@ -225,7 +225,6 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
                 if 0 <= col < 7:
                     if BOARD_ARRAY[0, col]==0:
                         RESULT = place_piece(curr_turn, col)
-                        curr_turn *= -1; curr_player = players[curr_turn]
                         move_made_in_cycle = True
         if not move_made_in_cycle and 'bot' in players[curr_turn].name:
             is_rl_bot = 'RLbot' in players[curr_turn].name
@@ -258,6 +257,10 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
                 players[1] = random.sample(opp_cache, 1)[0]
             if not is_test and players[-1].stop_training: # Early stopping for DRL
                 break
+            first_turn *= -1; curr_turn = first_turn
+        elif move_made_in_cycle: # game continues, flip players
+            curr_turn *= -1
+
         if results_df.shape[0]==epochs:
             break
 
