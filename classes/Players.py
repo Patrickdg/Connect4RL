@@ -105,7 +105,9 @@ class RLBot(Player):
         """
         curr_state = self.get_state_array(piece_arrays)
         state = self.process_state(curr_state)
-        q_vals = self.model(state)
+        self.model.eval()
+        with torch.no_grad():
+            q_vals = self.model(state)
         q_vals_ = q_vals.data.cpu().numpy()
         
         board_arr = piece_arrays[self.turn] + piece_arrays[-self.turn]
@@ -176,6 +178,7 @@ class RLBot(Player):
         self.update_early_stopping()
         if result is not None: # game epoch is over
             self.reset_vars()
+        return self
 
     def load_model(self, path):
         map_location = torch.device('cpu') if not torch.cuda.is_available() else None
@@ -252,15 +255,18 @@ class RLBotDDQN(RLBot):
         self.memory.append(curr_experience)
 
         if len(self.memory) <= self.batch_size:
-            return None
+            return self
 
         minibatch = random.sample(self.memory, self.batch_size)
+        
         s_batch = torch.cat([s for (s,a,r,s2,d) in minibatch]).to(device)
         a_batch = torch.Tensor([a for (s,a,r,s2,d) in minibatch]).to(device)
         r_batch = torch.Tensor([r for (s,a,r,s2,d) in minibatch]).to(device)
         s2_batch = torch.cat([s2 for (s,a,r,s2,d) in minibatch]).to(device)
         d_batch = torch.Tensor([d for (s,a,r,s2,d) in minibatch]).to(device)
 
+        self.model.train(True)
+        self.optimizer.zero_grad()
         q1 = self.model(s_batch)
         # get Q values of new state to update last state's Q values
         with torch.no_grad():
@@ -272,8 +278,8 @@ class RLBotDDQN(RLBot):
         X = q1.gather(dim=1, index=a_batch.long().unsqueeze(dim=1)).squeeze()
 
         loss = self.loss_fn(X, Y.detach())
-        self.optimizer.zero_grad()
         loss.backward()
+        self.optimizer.step()
         self.losses.append(loss.item())
         self.optimizer.step()
 
@@ -283,3 +289,4 @@ class RLBotDDQN(RLBot):
         self.update_early_stopping()
         if result is not None: # game epoch is over
             self.reset_vars()
+        return self
