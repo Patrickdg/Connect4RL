@@ -218,21 +218,21 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
             if event.type==pygame.QUIT:
                 pygame.quit()
             # take turn
-            if event.type==pygame.MOUSEBUTTONDOWN and curr_player.name=='player':
+            if event.type==pygame.MOUSEBUTTONDOWN and players[curr_turn].name=='player':
                 col = math.floor((event.pos[0]-BUFFER_PIXELS)/PIECE_DIM[0])
                 if 0 <= col < 7:
                     if BOARD_ARRAY[0, col]==0:
                         RESULT = place_piece(curr_turn, col)
                         curr_turn *= -1; curr_player = players[curr_turn]
                         move_made_in_cycle = True
-        if not move_made_in_cycle and 'bot' in curr_player.name:
-            is_rl_bot = 'RLbot' in curr_player.name
+        if not move_made_in_cycle and 'bot' in players[curr_turn].name:
+            is_rl_bot = 'RLbot' in players[curr_turn].name
             passed_state = PIECE_ARRAYS if is_rl_bot else BOARD_ARRAY
             # Determine model weights based on simulation parameters
             if is_test and (len(GAME_SEQ) < 2) and is_rl_bot: # first moves
-                curr_player.load_model(test_paths[curr_player.turn])
+                players[curr_turn].load_model(test_paths[players[curr_turn].turn])
             # get & make move
-            col = curr_player.move(passed_state)
+            col = players[curr_turn].move(passed_state)
             RESULT = place_piece(curr_turn, col)
             # SELF-PLAY REGIMENT
             if is_rl_bot and not is_test and curr_player.turn==-1: # only train the self-play RLbot
