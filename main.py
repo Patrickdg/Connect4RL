@@ -12,6 +12,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from collections import deque
 
 from classes.Piece import Piece
 from classes.Players import *
@@ -30,7 +31,7 @@ PIECE_IMGS = {-1: pygame.image.load('imgs/red_piece.png'), 1: pygame.image.load(
 PIECE_DIM = (PIECE_IMGS[-1].get_width(), PIECE_IMGS[-1].get_height())
 BOARD_IMG = pygame.image.load('imgs/board.png')
 
-def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, test_paths=None):
+def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, test_paths=None, level=0, opp_cache=deque([])):
     # SETUP & HELPER FUNCTIONS ======================================================
     SCORE_COUNTS = {-1: 0.0, 1: 0.0}
     WIN_RATES =    {-1: 0.0, 1: 0.0}
@@ -62,6 +63,7 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
         DISPLAY.blit(FONT.render(f"P1 Current Min. Loss: {np.round(player.min_loss_dict['current_min'], 4)}", False, (0,0,0)), (score_x, score_y*9))
         DISPLAY.blit(FONT.render(f"P1 Loss Steps: {player.min_loss_dict['num_steps']}", False, (0,0,0)), (score_x, score_y*11))
         DISPLAY.blit(FONT.render(f"P1 Current Epsilon: {player.epsilon}", False, (0,0,0)), (score_x, score_y*13))
+        DISPLAY.blit(FONT.render(f"CURRENT LEVEL: {level}", False, (255,0,0)), (score_x, score_y*16))
 
     def render_board():
         DISPLAY.blit(BOARD_IMG, (0 ,0))
@@ -252,8 +254,9 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
         if RESULT is not None:
             results_df = log_result(results_df, first_turn)
             refresh_game()
-            first_turn *= -1; curr_player = players[first_turn]
-            if not is_test and curr_player.turn==-1 and curr_player.stop_training: # Early stopping for DRL
+            if opp_cache!=deque([]):
+                players[1] = random.sample(opp_cache, 1)[0]
+            if not is_test and players[-1].stop_training: # Early stopping for DRL
                 break
         if results_df.shape[0]==epochs:
             break
@@ -273,21 +276,30 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
     if is_test:
         return None
     elif isinstance(players[-1], RLBotDDQN):
-        return [players[-1].reset_self_play(), copy.deepcopy(players[-1]).reset_self_play()]
+        out_players = [players[-1].reset_self_play(turn=-1), copy.deepcopy(players[-1]).reset_self_play(turn=1)]
+        return out_players, WIN_RATES[-1]
 
 def train_loop(expr_dir):
     """Implements cascading level self-play for RLbotDDQN"""
-    n_levels = 5
+    n_levels = 100
     games_per_level = 1000
     players = ['RLbotDDQN', 'bot'] # starting pair
+    opp_cache = deque(maxlen=20)
     for n in range(n_levels):
-        players = main(
+        curr_player = copy.deepcopy(players[0])
+        players, win_rate = main(
             p1=players[0],
             p2=players[1],
             epochs=games_per_level,
             expr_dir=expr_dir,
-            self_play=n>0
+            self_play=n>0,
+            level=n,
+            opp_cache=opp_cache
             )
+        if win_rate>0.55:
+            opp_cache.append(players[1])
+        else:
+            players = [curr_player.reset_self_play(turn=-1), copy.deepcopy(curr_player.reset_self_play(turn=1))]
 
 def test_loop(expr_dir):
     """Implements training loop that gathers the last 'n' models to test"""
