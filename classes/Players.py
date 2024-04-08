@@ -61,15 +61,26 @@ class RLBot(Player):
 
     def initialize_model(self):
         input_n = 84
-        hidden_n = 150
-        hidden_n_2 = 100
+        hidden_n = 500
+        hidden_n_2 = 300
+        hidden_n_3 = 100
+        hidden_n_4 = 50
         output_n = 7
+
         model = torch.nn.Sequential(
             torch.nn.Linear(input_n, hidden_n),
             self.activation(),
+            torch.nn.Linear(hidden_n, hidden_n),
+            self.activation(),
             torch.nn.Linear(hidden_n, hidden_n_2),
             self.activation(),
-            torch.nn.Linear(hidden_n_2, output_n),
+            torch.nn.Linear(hidden_n_2, hidden_n_2),
+            self.activation(),
+            torch.nn.Linear(hidden_n_2, hidden_n_3),
+            self.activation(),
+            torch.nn.Linear(hidden_n_3, hidden_n_4),
+            self.activation(),
+            torch.nn.Linear(hidden_n_4, output_n),
         )
         model.to(device)
         return model
