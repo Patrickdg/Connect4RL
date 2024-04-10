@@ -110,7 +110,7 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
         sum_col = sum(BOARD_ARRAY[:, col])
         is_legal_move = sum_col < BOARD_ARRAY.shape[0]
         if not is_legal_move:
-            return f'win-illegal_{str(-turn)}'
+            return f'win-illegal_{str(-turn)}', True
         
         if sum_col==0:
             y_row = BOARD_ARRAY.shape[0]-1
@@ -133,10 +133,10 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
         connect_4 = check_connect_4_piece(4, PIECE_ARRAYS[turn], placed_coord=(y_row, col))
         board_full = (BOARD_ARRAY==1).all()
         if connect_4:
-            return f'win-connect4_{str(turn)}'
+            return f'win-connect4_{str(turn)}', True
         elif board_full:
-            return 'draw'
-        return None
+            return 'draw', True
+        return None, True
 
     def log_result(results_df, first_turn):
         if 'draw' in RESULT:
@@ -201,6 +201,7 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
     # MAIN GAME LOOP ==============================================================
     global RESULT
     is_test = test_paths is not None
+
     results_df = pd.DataFrame()
     player_classes = {'player': Human, 'bot': Bot, 'RLbot': RLBot, 'RLbotDDQN': RLBotDDQN}
     players = [p1, p2]
@@ -211,6 +212,9 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
     else:
         players = {k: player_classes[players[v]](name=n, turn=k, test=is_test) \
                 for k, v, n in zip([p1_turn, -p1_turn], [0, 1], players)}
+    if is_test:
+        for turn_num, model_path in test_paths.items():
+            players[turn_num] = players[turn_num].load_model(model_path)
     first_turn = -1
     curr_turn = -1
     curr_player = players[curr_turn]
@@ -219,28 +223,21 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
         for event in pygame.event.get():
             if event.type==pygame.QUIT:
                 pygame.quit()
-            # take turn
-            if event.type==pygame.MOUSEBUTTONDOWN and players[curr_turn].name=='player':
+            if event.type==pygame.MOUSEBUTTONDOWN and isinstance(players[curr_turn], Human):
                 col = math.floor((event.pos[0]-BUFFER_PIXELS)/PIECE_DIM[0])
                 if 0 <= col < 7:
                     if BOARD_ARRAY[0, col]==0:
-                        RESULT = place_piece(curr_turn, col)
-                        move_made_in_cycle = True
-        if not move_made_in_cycle and 'bot' in players[curr_turn].name:
-            is_rl_bot = 'RLbot' in players[curr_turn].name
-            passed_state = PIECE_ARRAYS if is_rl_bot else BOARD_ARRAY
-            # Determine model weights based on simulation parameters
-            if is_test and (len(GAME_SEQ) < 2) and is_rl_bot: # first moves
-                players[curr_turn].load_model(test_paths[players[curr_turn].turn])
-            # get & make move
-            col = players[curr_turn].move(passed_state)
-            move_made_in_cycle = True
-
-            RESULT = place_piece(curr_turn, col)
-            # SELF-PLAY REGIMENT
-            opponent_moved = players[curr_turn].turn==1 and players[-1].n_epoch_moves>0
-            rlbot_win = (RESULT is not None) and players[curr_turn].turn==-1
-            if not is_test and (opponent_moved or rlbot_win): # only train the self-play RLbot
+                        RESULT, move_made_in_cycle = place_piece(curr_turn, col)
+        if not move_made_in_cycle and isinstance(players[curr_turn], Bot):
+            col = players[curr_turn].move(PIECE_ARRAYS)
+            RESULT, move_made_in_cycle = place_piece(curr_turn, col)
+            """ SELF-PLAY REGIMENT
+            - only train the first player RLBot '-1'
+            - train the RLBot after opponent makes move (assuming RLBot moved in previous step)
+            """
+            opponent_moved = curr_turn==1 and players[-1].n_epoch_moves>0
+            rlbot_win = curr_turn==-1 and RESULT is not None
+            if not is_test and (opponent_moved or rlbot_win):
                 players[-1] = players[-1].train(PIECE_ARRAYS, RESULT)
 
         DISPLAY.fill("white")
@@ -278,16 +275,16 @@ def main(p1='RLbotDDQN', p2='bot', epochs=1000, self_play=False, expr_dir=None, 
     log_models_and_results(players, results_df, expr_dir, expr_dict['expr_name'])
     if is_test:
         return None
-    elif isinstance(players[-1], RLBotDDQN):
+    elif isinstance(players[-1], RLBot):
         out_players = [players[-1].reset_self_play(turn=-1), copy.deepcopy(players[-1]).reset_self_play(turn=1)]
         return out_players, WIN_RATES[-1]
 
 def train_loop(expr_dir):
     """Implements cascading level self-play for RLbotDDQN"""
-    n_levels = 100
+    n_levels = 200
     games_per_level = 1000
     players = ['RLbotDDQN', 'bot'] # starting pair
-    opp_cache = deque(maxlen=20)
+    opp_cache = deque(maxlen=7)
     for n in range(n_levels):
         curr_player = copy.deepcopy(players[0])
         players, win_rate = main(
@@ -320,6 +317,6 @@ def test_loop(expr_dir):
             )
 
 if __name__=="__main__":
-    expr_dir = 'DDQN_selfplay_earlystopping2'
+    expr_dir = 'DDQN_selfplay_n200_cache7'
     train_loop(expr_dir)
     # test_loop(expr_dir)

@@ -21,14 +21,15 @@ class Bot(Player):
     def __init__(self, name: str, turn: int, test: bool) -> None:
         super().__init__(name, turn, test)
 
-    def move(self, board_arr) -> int:
+    def move(self, piece_arrays) -> int:
         """Make move based on current board state."""
+        board_arr = piece_arrays[self.turn] + piece_arrays[-self.turn]
         available_cols = board_arr.sum(axis=0) < board_arr.shape[0]
         available_cols = [c for c, i in zip(list(range(board_arr.shape[1])), available_cols) if i]
         col = random.choice(available_cols)
         return col
     
-class RLBot(Player):
+class RLBot(Bot):
     def __init__(self, name: str, turn: int, test: bool) -> None:
         super().__init__(name, turn, test)
 
@@ -39,11 +40,11 @@ class RLBot(Player):
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr) 
         self.gamma = 0.9
         self.epsilon = self.get_epsilon()
-        self.epsilon_decay = 0.0007
+        self.epsilon_decay = 0.0006
 
         self.stop_training = False # early stopping flag
         self.min_loss_dict = {'current_min': np.inf, 'num_steps': 0}
-        self.patience = 200 # num. steps
+        self.patience = 600 # num. steps
         self.losses = []
         self.rewards = []
         self.n_moves = 0
@@ -54,17 +55,17 @@ class RLBot(Player):
             'draw': 5,
             'win': 10,
             'loss': -10,
-            'move': 0,
+            'move': -1,
         }
 
     def get_epsilon(self):
-        return 0.0 if (self.turn!=-1 or self.test) else 0.3
+        return 0.0 if (self.turn!=-1 or self.test) else 0.4
 
     def initialize_model(self):
         input_n = 84
-        hidden_n = 500
-        hidden_n_2 = 300
-        hidden_n_3 = 100
+        hidden_n = 200
+        hidden_n_2 = 500
+        hidden_n_3 = 200
         hidden_n_4 = 50
         output_n = 7
 
@@ -100,10 +101,6 @@ class RLBot(Player):
         return state
 
     def move(self, piece_arrays: Dict) -> int:
-        """
-        @curr_state: 6x7x2 array, rows x cols x sides
-        Sides represent friendly and enemy pieces.
-        """
         curr_state = self.get_state_array(piece_arrays)
         state = self.process_state(curr_state)
         self.model.eval()
@@ -119,6 +116,8 @@ class RLBot(Player):
             q_vals_ = np.where((q_vals_*available_cols.astype(int))==0, q_vals.min().item()-1, q_vals_)
             action_ = np.argmax(q_vals_)
         self.epsilon *= (1-self.epsilon_decay)
+
+        self.current_sqars = [None, None, None, None, None]
         self.current_sqars[0] = state
         self.current_sqars[1] = q_vals
         self.current_sqars[2] = action_
@@ -133,7 +132,6 @@ class RLBot(Player):
         else:
             win_side = int(move_result.split('_')[-1])
             reward = self.reward_vals['win'] if win_side==self.turn else self.reward_vals['loss']
-        self.current_sqars[3] = reward
         self.rewards.append(reward)
         return reward
     
@@ -159,8 +157,8 @@ class RLBot(Player):
         new_state = self.process_state(new_state)
 
         self.current_sqars[4] = new_state
+        self.current_sqars[3] = self.get_reward(result)
 
-        reward = self.get_reward(result)
         
         # get Q values of new state to update last state's Q values
         with torch.no_grad():
@@ -184,9 +182,12 @@ class RLBot(Player):
 
     def load_model(self, path):
         map_location = torch.device('cpu') if not torch.cuda.is_available() else None
-        self.model.load_state_dict(torch.load(path, map_location=map_location).state_dict())
+        self.model.load_state_dict(torch.load(path, map_location=map_location))
+        self.model.eval()
         if hasattr(self, 'target_model'):
             self.target_model.load_state_dict(self.model.state_dict())
+            self.target_model.eval()
+        return self
 
     def plot_results(self, show=False, save_path=None):
         """Plots losses, rewards by move"""
@@ -209,7 +210,7 @@ class RLBot(Player):
 
     def save_model_and_results(self, model_path: str):
         # model
-        torch.save(self.model, model_path+'model.pth')
+        torch.save(self.model.state_dict(), model_path+'model.pth')
         # results: losses, rewards, avg. win rate
         np.savetxt(model_path+'losses.csv', np.array(self.losses), delimiter=',', header='losses')
         self.plot_results(save_path=model_path+'results.png')
@@ -227,6 +228,7 @@ class RLBotDDQN(RLBot):
         self.target_sync_freq = 200
         self.target_model = copy.deepcopy(self.model)
         self.target_model.load_state_dict(self.model.state_dict())
+        self.target_model.eval()
 
     def reset_self_play(self, turn: int):
         self.lr = 1e-3
@@ -242,6 +244,10 @@ class RLBotDDQN(RLBot):
 
         self.stop_training = False
         self.min_loss_dict = {'current_min': np.inf, 'num_steps': 0}
+
+        self.model.eval()
+        self.target_model.load_state_dict(self.model.state_dict())
+        self.target_model.eval()
         return self
 
     def train(self, new_piece_arrays, result):
@@ -249,7 +255,7 @@ class RLBotDDQN(RLBot):
         new_state = self.process_state(new_state)
         self.current_sqars[4] = new_state
 
-        reward = self.get_reward(result)
+        self.current_sqars[3] = self.get_reward(result)
         curr_experience = (#sqars: state_t, q_vals_t, action_t, reward_t, state_t+1
             self.current_sqars[0], # state t
             self.current_sqars[2], # action t
@@ -289,6 +295,7 @@ class RLBotDDQN(RLBot):
 
         if self.n_moves % self.target_sync_freq == 0:
             self.target_model.load_state_dict(self.model.state_dict())
+            self.target_model.eval()
         
         self.update_early_stopping()
         if result is not None: # game epoch is over
