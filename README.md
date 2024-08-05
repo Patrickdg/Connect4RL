@@ -1,6 +1,6 @@
 # Connect 4 Reinforcement Learning Agent
 This project implements a basic Reinforcement Learning (RL) agent to play the game Connect 4.  
-*WATCH VIDEOS DISCUSSING METHODOLOGY AND IMPLEMENTATION [HERE](https://www.youtube.com/watch?v=ZajtpWrXTMo&list=PLrvR059V8-ufXwas14H2YEx84i2jrb9Bw&pp=gAQBiAQB).*
+**WATCH VIDEOS DISCUSSING METHODOLOGY AND IMPLEMENTATION [HERE](https://www.youtube.com/watch?v=ZajtpWrXTMo&list=PLrvR059V8-ufXwas14H2YEx84i2jrb9Bw&pp=gAQBiAQB).**
 
 ## Background: Connect 4
 Connect 4 is a board game played between 2 players where each player takes turns placing checkers into a grid of 6 rows and 7 columns. 
